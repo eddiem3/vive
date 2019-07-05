@@ -1,9 +1,19 @@
 #import RPi.GPIO as GPIO
+import tkinter as tk
 import time
 import cv2
 import subprocess
 import re
-import boto3
+import PIL
+from PIL import Image,ImageTk
+import pytesseract
+from picamera import PiCamera
+from time import sleep
+
+
+
+
+
 
 def turnOffScreen():
     subprocess.call(['xset', 'dpms', 'force','off'])
@@ -22,7 +32,7 @@ def uploadToBucket(filename):
         
 
 
-def recordVideo(duration):
+def recordVideoCv(duration):
     """
     Record a video for a given number of seconds
     
@@ -35,7 +45,7 @@ def recordVideo(duration):
     cap = cv2.VideoCapture(0) 
 
     #Video output file name will be the current day and time
-    file = (re.sub('[^A-Za-z0-9]+', '', time.asctime()) +'.mp4').lower()
+    file = "../vivecam-express/public/videos/" +(re.sub('[^A-Za-z0-9]+', '', time.asctime()) +'.m4v').lower()
     
 
     #Get the default width and height of frame 
@@ -44,7 +54,7 @@ def recordVideo(duration):
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) + 0.5)
 
     # Define the codec and create VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'MP4V')
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(file, fourcc, 20.0, (width,height))
     
 
@@ -59,7 +69,6 @@ def recordVideo(duration):
         
         if ret==True:
             out.write(frame)
-            cv2.imshow('frame', frame)
         else:
             break
         
@@ -70,13 +79,29 @@ def recordVideo(duration):
 
     print("Output written to " + file)
 
-    uploadToBucket(file)
+    #uploadToBucket(file)
 
     
     
     with open('videos.csv','a') as fd:
         fd.write(file)
-        
+     
+
+
+def recordVideoPi():
+    camera = PiCamera()
+    camera.start_recording('/home/pi/video.h264')
+    camera.start_preview()
+    sleep(10)
+    camera.stop_preview()   
+
+
+
+
+
+
+recordVideoPi()
+
     
 #GPIO.setmode(GPIO.BCM)
 
@@ -96,7 +121,6 @@ def recordVideo(duration):
 #
 #except:
 #    GPIO.cleanup()
-
 
 
 
