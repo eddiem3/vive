@@ -1,17 +1,15 @@
 #import RPi.GPIO as GPIO
-import tkinter as tk
+#import tkinter as tk
 import time
-import cv2
+#import cv2
 import subprocess
 import re
-import PIL
-from PIL import Image,ImageTk
-import pytesseract
+#import PIL
+#from PIL import Image,ImageTk
+#import pytesseract
 from picamera import PiCamera
 from time import sleep
-
-
-
+import datetime
 
 
 
@@ -92,12 +90,36 @@ def takeSnapshot():
     camera.capture('/home/pi/Desktop/image.jpg')
     camera.stop_preview()
 
+
 def recordVideoPi():
+    #Get current date and time
+    day = datetime.datetime.now()
+    format = '%a %b %d %H %M %S %Y'
+
+    #Create output filename
+    filepath = '../vive-web/public/videos/'
+
+    exh = '.h264' #input extension from PiCamera
+    exm =  '.mp4' #output extension after ffmpeg
+    
+    filename  = re.sub('[^A-Za-z0-9]+', '', day.strftime(format)).lower() 
+    input_file_name = filepath + filename + exh
+    output_file_name =  filepath + filename +exm
+
+
+    #Record video
     camera = PiCamera()
-    camera.start_recording('/home/pi/video.h264')
+    camera.start_recording(input_file_name)
     camera.start_preview()
     sleep(10)
-    camera.stop_preview()   
+    camera.stop_preview()
+    sleep(10)
+    print("Converting to a useable format.....")
+    command = ["ffmpeg", "-f", "h264", "-i",  input_file_name , "-c:v", "copy", output_file_name]
+    subprocess.call(command)
+    print("Converstion completed. Cleaning up....")
+    subprocess.call(["rm", input_file_name])
+
 
 
 
@@ -117,7 +139,7 @@ recordVideoPi()
 #    while True:
 #        if GPIO.input(23) or GPIO.input(24):
 #            print("Motion Detected...")
-#            recordVideo(10)
+#            recordVideoPi()
             
             
 #            time.sleep(5)
