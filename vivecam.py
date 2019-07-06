@@ -86,7 +86,11 @@ def recordVideoCv(duration):
     with open('videos.csv','a') as fd:
         fd.write(file)
      
-
+def takeSnapshot():
+    camera.start_preview()
+    sleep(5)
+    camera.capture('/home/pi/Desktop/image.jpg')
+    camera.stop_preview()
 
 def recordVideoPi():
     camera = PiCamera()
