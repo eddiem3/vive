@@ -1,15 +1,16 @@
-#import RPi.GPIO as GPIO
-#import tkinter as tk
+import RPi.GPIO as GPIO
 import time
-#import cv2
 import subprocess
 import re
-#import PIL
-#from PIL import Image,ImageTk
-#import pytesseract
 from picamera import PiCamera
 from time import sleep
 import datetime
+from google.cloud import storage
+from google.cloud import bigquery
+from google.cloud.bigquery.client import Client
+import os
+import smtplib
+
 
 
 
@@ -19,15 +20,28 @@ def turnOffScreen():
 def turnOnScreen():
     subprocess.call(['xset', 'dpms', 'force','on'])
 
-def uploadToBucket(filename):
-    print("Uploading to Amazon...")
-    s3 = boto3.client('s3')
-    with open(filename, "rb") as f:
-        if s3.upload_fileobj(f, "vive-cam", filename):
-            print("Upload complete")
-        else:
-            print("Upload failed")
-        
+
+def upload_blob(bucket_name, source_file_name, destination_blob_name):
+
+    creds = '.google/googlecreds.json'
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = creds
+    bq_client = Client()
+
+    #client = bigquery.Client.from_service_account_json(os.environ['HOME'] +
+    #"/.google/googlecreds.json"
+
+
+    """Uploads a file to the bucket."""
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    blob.upload_from_filename(source_file_name)
+    blob.make_public()
+
+    print('File {} uploaded to {}.'.format(
+        source_file_name,
+        destination_blob_name))
 
 
 def recordVideoCv(duration):
@@ -84,12 +98,6 @@ def recordVideoCv(duration):
     with open('videos.csv','a') as fd:
         fd.write(file)
      
-def takeSnapshot():
-    camera.start_preview()
-    sleep(5)
-    camera.capture('/home/pi/Desktop/image.jpg')
-    camera.stop_preview()
-
 
 def recordVideoPi():
     #Get current date and time
@@ -102,34 +110,91 @@ def recordVideoPi():
     exh = '.h264' #input extension from PiCamera
     exm =  '.mp4' #output extension after ffmpeg
     
-    filename  = re.sub('[^A-Za-z0-9]+', '', day.strftime(format)).lower() 
+    #filename  = re.sub('[^A-Za-z0-9]+', '', day.strftime(format)).lower() 
+    filename  = day.strftime(format)
     input_file_name = filepath + filename + exh
     output_file_name =  filepath + filename +exm
 
+    camera = PiCamera()
+    
+    #Take a picture
+    imagepath = filepath +filename + '.jpg'
+    camera.start_preview()
+    sleep(5)
+    camera.capture(imagepath)
+    camera.stop_preview()
+
+    sleep(0.1)
 
     #Record video
-    camera = PiCamera()
+
     camera.start_recording(input_file_name)
     camera.rotation = 90
     camera.start_preview()
 
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(23, GPIO.IN) #PIR1
+    GPIO.setup(24, GPIO.IN) #PIR2
+    pir1 =  GPIO.input(23)
+    pir2 = GPIO.input(24)
 
-    if !GPIO.input(23) and !GPIO.input(24):
+    if(not pir1 and not pir2):
+        sleep(10)
         camera.stop_preview()
-         sleep(10)
+        sleep(10)
         print("Converting to a useable format.....")
         command = ["ffmpeg", "-f", "h264", "-i",  input_file_name , "-c:v", "copy", output_file_name]
         subprocess.call(command)
         print("Converstion completed. Cleaning up....")
         subprocess.call(["rm", input_file_name])
+        print("Uploading to cloud......")
+        upload_blob('vivecam',imagepath, filename + '.jpg') #upload image
+        upload_blob('vivecam', output_file_name, filename + exm) #upload video
+        email(filename)
+        subprocess.call(["rm", input_file_name])
         
-turnOffScreen()
+        
+def email(filename):
+    
+    
+    TO = 'eddiemasseyiii@gmail.com'
+    SUBJECT = 'Motion Detected'
+    TEXT = 'Motion detected. View at ' + 'https://storage.googleapis.com/vivecam/' +filename +'.mp4'
+
+    # Gmail Sign In
+    gmail_sender = 'eddiemasseyiii@gmail.com'
+    gmail_passwd = 'christ8!isking'
+    
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.ehlo()
+    server.starttls()
+    server.login(gmail_sender, gmail_passwd)
+
+    BODY = '\r\n'.join(['To: %s' % TO,
+                        'From: %s' % gmail_sender,
+                        'Subject: %s' % SUBJECT,
+                        '', TEXT])
+
+    try:
+        server.sendmail(gmail_sender, [TO], BODY)
+        print ('email sent')
+    except:
+        print ('error sending mail')
+
+    server.quit()
+
+
+
+
+
+
+
+
 recordVideoPi()
-turnOnScreen()
 
 
 #turnOffScreen()
-# Gpio.setmode(GPIO.BCM)
+# GPIO.setmode(GPIO.BCM)
 
 # GPIO.setup(23, GPIO.IN) #PIR1
 # GPIO.setup(24, GPIO.IN) #PIR2
@@ -142,8 +207,6 @@ turnOnScreen()
 #            print("Motion Detected...")
 #            
 #            time.sleep(1)
-#            takeSnapshot()
-#            time.sleep(0.5)
 #            recordVideoPi()
 #            turnOffScreen()
 #            time.sleep(0.1)
