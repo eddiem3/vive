@@ -1,16 +1,17 @@
 #import RPi.GPIO as GPIO
-#import tkinter as tk
 import time
-#import cv2
 import subprocess
 import re
-#import PIL
-#from PIL import Image,ImageTk
-#import pytesseract
-from picamera import PiCamera
+#from picamera import PiCamera
 from time import sleep
 import datetime
+from google.cloud import storage
+#from google.cloud import bigquery
+from google.cloud.bigquery.client import Client
+import os
+import smtplib
 
+filename = ''
 
 
 def turnOffScreen():
@@ -19,15 +20,28 @@ def turnOffScreen():
 def turnOnScreen():
     subprocess.call(['xset', 'dpms', 'force','off'])
 
-def uploadToBucket(filename):
-    print("Uploading to Amazon...")
-    s3 = boto3.client('s3')
-    with open(filename, "rb") as f:
-        if s3.upload_fileobj(f, "vive-cam", filename):
-            print("Upload complete")
-        else:
-            print("Upload failed")
-        
+
+def upload_blob(bucket_name, source_file_name, destination_blob_name):
+
+    creds = os.environ['HOME'] + '/.google/googlecreds.json'
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = creds
+    bq_client = Client()
+
+    #client = bigquery.Client.from_service_account_json(os.environ['HOME'] +
+    #"/.google/googlecreds.json"
+
+
+    """Uploads a file to the bucket."""
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    blob.upload_from_filename(source_file_name)
+    blob.make_public()
+
+    print('File {} uploaded to {}.'.format(
+        source_file_name,
+        destination_blob_name))
 
 
 def recordVideoCv(duration):
@@ -102,9 +116,12 @@ def recordVideoPi():
     exh = '.h264' #input extension from PiCamera
     exm =  '.mp4' #output extension after ffmpeg
     
-    filename  = re.sub('[^A-Za-z0-9]+', '', day.strftime(format)).lower() 
+    #filename  = re.sub('[^A-Za-z0-9]+', '', day.strftime(format)).lower() 
+    filename  = day.strftime(format)
     input_file_name = filepath + filename + exh
     output_file_name =  filepath + filename +exm
+
+    #
 
 
     #Record video
@@ -119,14 +136,47 @@ def recordVideoPi():
     subprocess.call(command)
     print("Converstion completed. Cleaning up....")
     subprocess.call(["rm", input_file_name])
+    print("Uploading to cloud......")
+    upload_blob('vivecam', output_file_name, filename + exm)
+    
+def email():
+    
+    
+    TO = 'eddiemasseyiii@gmail.com'
+    SUBJECT = 'Motion Detected'
+    TEXT = 'Motion detected. View at ' + 'https://storage.googleapis.com/vivecam/' +filename +'.mp4'
+
+    # Gmail Sign In
+    gmail_sender = 'xxxxxx@yyyy.com'
+    gmail_passwd = 'abc123'
+    
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.ehlo()
+    server.starttls()
+    server.login(gmail_sender, gmail_passwd)
+
+    BODY = '\r\n'.join(['To: %s' % TO,
+                        'From: %s' % gmail_sender,
+                        'Subject: %s' % SUBJECT,
+                        '', TEXT])
+
+    try:
+        server.sendmail(gmail_sender, [TO], BODY)
+        print ('email sent')
+    except:
+        print ('error sending mail')
+
+    server.quit()
 
 
 
 
+#upload_blob('vivecam', 'video.mp4', 'video.mp4')
+#email()
 
 
 
-recordVideoPi()
+#recordVideoPi()
 
     
 #GPIO.setmode(GPIO.BCM)
