@@ -17,7 +17,7 @@ def turnOffScreen():
     subprocess.call(['xset', 'dpms', 'force','off'])
 
 def turnOnScreen():
-    subprocess.call(['xset', 'dpms', 'force','off'])
+    subprocess.call(['xset', 'dpms', 'force','on'])
 
 def uploadToBucket(filename):
     print("Uploading to Amazon...")
@@ -110,42 +110,45 @@ def recordVideoPi():
     #Record video
     camera = PiCamera()
     camera.start_recording(input_file_name)
+    camera.rotation = 90
     camera.start_preview()
-    sleep(10)
-    camera.stop_preview()
-    sleep(10)
-    print("Converting to a useable format.....")
-    command = ["ffmpeg", "-f", "h264", "-i",  input_file_name , "-c:v", "copy", output_file_name]
-    subprocess.call(command)
-    print("Converstion completed. Cleaning up....")
-    subprocess.call(["rm", input_file_name])
 
 
-
-
-
-
-
+    if !GPIO.input(23) and !GPIO.input(24):
+        camera.stop_preview()
+         sleep(10)
+        print("Converting to a useable format.....")
+        command = ["ffmpeg", "-f", "h264", "-i",  input_file_name , "-c:v", "copy", output_file_name]
+        subprocess.call(command)
+        print("Converstion completed. Cleaning up....")
+        subprocess.call(["rm", input_file_name])
+        
+turnOffScreen()
 recordVideoPi()
+turnOnScreen()
 
-    
-#GPIO.setmode(GPIO.BCM)
 
-#GPIO.setup(23, GPIO.IN) #PIR1
-#GPIO.setup(24, GPIO.IN) #PIR2
+#turnOffScreen()
+# Gpio.setmode(GPIO.BCM)
 
-#try:
+# GPIO.setup(23, GPIO.IN) #PIR1
+# GPIO.setup(24, GPIO.IN) #PIR2
+
+# try:
 #    time.sleep(1) 
 #    while True:
 #        if GPIO.input(23) or GPIO.input(24):
+             #turnOnScreen()
 #            print("Motion Detected...")
+#            
+#            time.sleep(1)
+#            takeSnapshot()
+#            time.sleep(0.5)
 #            recordVideoPi()
-            
-            
-#            time.sleep(5)
+#            turnOffScreen()
 #            time.sleep(0.1)
-#
-#except:
+
+# except:
 #    GPIO.cleanup()
 
 
